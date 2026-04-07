@@ -10,10 +10,10 @@
 #   <prefix>.annotated.tsv
 #   <prefix>.repeat_detail.tsv
 #   <prefix>.background_summary.tsv
-#   <prefix>.feature_annotation_percent.png
-#   <prefix>.repeat_association_percent.png
-#   <prefix>.repeat_class_frequency.png
-#   <prefix>.repeat_name_topN_frequency.png
+#   <prefix>.feature_annotation_percent.png / .pdf
+#   <prefix>.repeat_association_percent.png / .pdf
+#   <prefix>.repeat_class_frequency.png / .pdf
+#   <prefix>.repeat_name_topN_frequency.png / .pdf
 #
 # Usage:
 #   Rscript annotate_regions_background_repeatmode.R regions.bed output_prefix [top_n_repeat_names]
@@ -599,13 +599,15 @@ extract_repeat_plot_data <- function(out_df, repeat_detail_df, mode, top_n_repea
 
   class_counts <- sort(table(class_vals), decreasing = TRUE)
   name_counts <- sort(table(name_vals), decreasing = TRUE)
+  name_total_all <- sum(name_counts)  # total across ALL detected names, before trimming to top N
   if (length(name_counts) > top_n_repeat_names) {
     name_counts <- name_counts[seq_len(top_n_repeat_names)]
   }
 
   list(
     class_counts = class_counts,
-    name_counts = name_counts
+    name_counts = name_counts,
+    name_total_all = name_total_all
   )
 }
 
@@ -625,6 +627,7 @@ feature_bg_mat <- matrix(0L, nrow = background_iterations, ncol = length(feature
 repeat_any_bg_mat <- matrix(0L, nrow = background_iterations, ncol = length(repeat_any_levels), dimnames = list(NULL, repeat_any_levels))
 repeat_class_bg_list <- vector("list", background_iterations)
 repeat_name_bg_list <- vector("list", background_iterations)
+repeat_name_bg_total_list <- vector("list", background_iterations)
 
 for (iter in seq_len(background_iterations)) {
   bg_regions <- sample_background_regions(regions, seq_lengths, iter)
@@ -649,6 +652,7 @@ for (iter in seq_len(background_iterations)) {
   )
   repeat_class_bg_list[[iter]] <- bg_repeat_plot_data$class_counts
   repeat_name_bg_list[[iter]] <- bg_repeat_plot_data$name_counts
+  repeat_name_bg_total_list[[iter]] <- bg_repeat_plot_data$name_total_all
 }
 
 feature_observed_counts <- count_levels(out_df$primary_annotation, feature_levels)
@@ -727,8 +731,11 @@ background_name_counts_full <- mean_named_table(repeat_name_bg_list, name_catego
 
 class_total_observed <- sum(observed_class_counts_full)
 class_total_background <- sum(background_class_counts_full)
-name_total_observed <- sum(observed_name_counts_full)
-name_total_background <- sum(background_name_counts_full)
+# Use totals across ALL detected names (not just top N) so percentages are
+# relative to the full detected repeat-name universe in each set.
+name_total_observed <- observed_repeat_plot_data$name_total_all
+name_total_background <- mean(unlist(repeat_name_bg_total_list))
+if (is.na(name_total_background)) name_total_background <- 0
 
 repeat_class_plot_df <- data.frame(
   category = rep(class_categories, 2L),
@@ -819,11 +826,12 @@ make_percent_compare_plot <- function(plot_df, x_label, y_label, title, out_file
     geom_text(
       aes(label = sprintf("%.1f%%\n(n=%.1f)", percent * 100, n)),
       position = position_dodge(width = 0.8),
-      vjust = -0.2,
+      hjust = if (flip) -0.1 else 0.5,
+      vjust = if (flip) 0.5 else -0.2,
       size = 3
     ) +
     scale_y_continuous(
-      limits = c(0, ymax * 1.20),
+      limits = c(0, ymax * 1.30),
       labels = function(x) sprintf("%.0f%%", x * 100)
     ) +
     labs(x = x_label, y = y_label, title = title, fill = NULL) +
@@ -833,13 +841,14 @@ make_percent_compare_plot <- function(plot_df, x_label, y_label, title, out_file
     p <- p + coord_flip()
   }
 
-  ggsave(out_file, p, width = if (flip) 8 else 6.5, height = if (flip) 5.5 else 4.5, dpi = 300)
+  ggsave(paste0(out_file, ".png"), p, width = if (flip) 8 else 6.5, height = if (flip) 5.5 else 4.5, dpi = 300)
+  ggsave(paste0(out_file, ".pdf"), p, width = if (flip) 8 else 6.5, height = if (flip) 5.5 else 4.5)
 }
 
-feature_plot <- paste0(out_prefix, ".feature_annotation_percent.png")
-repeat_assoc_plot <- paste0(out_prefix, ".repeat_association_percent.png")
-repeat_class_plot <- paste0(out_prefix, ".repeat_class_frequency.png")
-repeat_name_plot <- paste0(out_prefix, ".repeat_name_top", top_n_repeat_names, "_frequency.png")
+feature_plot <- paste0(out_prefix, ".feature_annotation_percent")
+repeat_assoc_plot <- paste0(out_prefix, ".repeat_association_percent")
+repeat_class_plot <- paste0(out_prefix, ".repeat_class_frequency")
+repeat_name_plot <- paste0(out_prefix, ".repeat_name_top", top_n_repeat_names, "_frequency")
 
 message("Generating plots...")
 make_percent_compare_plot(
@@ -873,7 +882,11 @@ if (nrow(repeat_class_plot_df) > 0L && any(repeat_class_plot_df$n > 0)) {
     flip = FALSE
   )
 } else {
-  png(repeat_class_plot, width = 1400, height = 900, res = 150)
+  png(paste0(repeat_class_plot, ".png"), width = 1400, height = 900, res = 150)
+  plot.new()
+  text(0.5, 0.5, "No repeat-overlapping regions found")
+  dev.off()
+  pdf(paste0(repeat_class_plot, ".pdf"), width = 1400 / 150, height = 900 / 150)
   plot.new()
   text(0.5, 0.5, "No repeat-overlapping regions found")
   dev.off()
@@ -893,7 +906,11 @@ if (nrow(repeat_name_plot_df) > 0L && any(repeat_name_plot_df$n > 0)) {
     flip = TRUE
   )
 } else {
-  png(repeat_name_plot, width = 1400, height = 900, res = 150)
+  png(paste0(repeat_name_plot, ".png"), width = 1400, height = 900, res = 150)
+  plot.new()
+  text(0.5, 0.5, "No repeat-overlapping regions found")
+  dev.off()
+  pdf(paste0(repeat_name_plot, ".pdf"), width = 1400 / 150, height = 900 / 150)
   plot.new()
   text(0.5, 0.5, "No repeat-overlapping regions found")
   dev.off()
