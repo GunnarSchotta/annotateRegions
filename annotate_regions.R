@@ -24,6 +24,8 @@
 #   Rscript annotate_regions_background_repeatmode.R peaks.bed peaks_mm39 10 \
 #       --genome mm39 --repeat-summary-mode dominant --background-iterations 100
 
+VERSION <- "1.0.0"
+
 suppressPackageStartupMessages({
   options(stringsAsFactors = FALSE)
 })
@@ -39,7 +41,10 @@ parse_args <- function(args) {
   i <- 1L
   while (i <= length(args)) {
     arg <- args[[i]]
-    if (arg == "--genome") {
+    if (arg %in% c("--version", "-v")) {
+      cat(paste0("annotate_regions.R version ", VERSION, "\n"))
+      quit(save = "no", status = 0)
+    } else if (arg == "--genome") {
       if (i == length(args)) stop("Missing value after --genome")
       opts$genome <- args[[i + 1L]]
       i <- i + 2L
