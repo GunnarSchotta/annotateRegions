@@ -1,0 +1,28 @@
+
+Warnmeldungen:
+1: Paket 'AnnotationHub' wurde unter R Version 4.5.1 erstellt 
+2: Paket 'dbplyr' wurde unter R Version 4.5.3 erstellt 
+3: Paket 'ggplot2' wurde unter R Version 4.5.3 erstellt 
+Reading BED file: regions.bed
+Preparing transcript, promoter, gene-body, and TSS annotations...
+'select()' returned 1:1 mapping between keys and columns
+Computing nearest TSS and gene mapping...
+Retrieving mm10 RepeatMasker annotations from AnnotationHub...
+loading from cache
+Filtering RepeatMasker annotations before overlap calculation. Kept 3820520 of 5333739 entries after excluding classes: Simple_repeat, Low_complexity, Satellite, rRNA, scRNA, snRNA, srpRNA, tRNA, LTR?, DNA?, RNA, RC, SINE?, LINE?, RC?
+Computing repeat overlaps...
+Sampling genomic background with 100 matched randomization(s)...
+Wrote: mm10_test.annotated.tsv
+Wrote: mm10_test.repeat_detail.tsv
+Wrote: mm10_test.background_summary.tsv
+Generating plots...
+Done.
+Primary output table: mm10_test.annotated.tsv
+Detailed repeat overlap table: mm10_test.repeat_detail.tsv
+Background summary table: mm10_test.background_summary.tsv
+Repeat summary mode for class/name plots: dominant
+Background iterations: 100
+Plots:
+  mm10_test.feature_annotation_percent
+  mm10_test.repeat_class_frequency
+  mm10_test.repeat_name_top10_frequency

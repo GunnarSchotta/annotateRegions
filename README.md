@@ -15,7 +15,9 @@ Given a BED file of genomic regions, the script:
 - compares the observed regions against matched randomized genomic background regions
 - writes result tables and PNG plots
 
-The repeat analysis excludes several non-TE repeat classes such as simple repeats, low-complexity regions, satellite annotations, and small RNA-related categories so the repeat summaries stay focused on TE-derived annotations.
+The repeat analysis excludes several non-TE repeat classes such as simple repeats, low-complexity regions, satellite annotations, and small RNA-related categories so the repeat summaries stay focused on TE-derived annotations. In the repeat class plot, the `Other` and `Unknown` RepeatMasker classes are collapsed into a single `Other/Unknown` category.
+
+Plots are sized as small panels (a few cm on a side) suitable for embedding directly into paper figures, with minimal axis/label text and no in-plot titles.
 
 ## Supported Genomes
 
@@ -81,11 +83,10 @@ Using an output prefix such as `peaks_mm39`, the script generates:
 
 - `peaks_mm39.annotated.tsv`: main region-level annotation table
 - `peaks_mm39.repeat_detail.tsv`: detailed repeat overlap information
-- `peaks_mm39.background_summary.tsv`: observed vs. background summary statistics
-- `peaks_mm39.feature_annotation_percent.png`: feature annotation percentages
-- `peaks_mm39.repeat_association_percent.png`: repeat-associated vs. non-repeat-associated fractions
-- `peaks_mm39.repeat_class_frequency.png`: repeat class frequency plot
-- `peaks_mm39.repeat_name_topN_frequency.png`: top repeat-name frequency plot
+- `peaks_mm39.background_summary.tsv`: observed vs. background summary statistics, including repeat association (repeat-associated vs. non-repeat-associated fractions), which is not plotted since repeats are too abundant genome-wide for a meaningful comparison
+- `peaks_mm39.feature_annotation_percent.png` / `.pdf`: feature annotation percentages
+- `peaks_mm39.repeat_class_frequency.png` / `.pdf`: repeat class frequency plot
+- `peaks_mm39.repeat_name_topN_frequency.png` / `.pdf`: top repeat-name frequency plot
 
 ## Dependencies
 
@@ -113,3 +114,4 @@ By default, the script attempts to install missing packages automatically.
 ## Repository Contents
 
 - `annotate_regions.R`: main annotation script
+- `example/`: a worked example — `make_random_regions.py` generates a random set of mm10 test regions (`regions.bed`), and the `mm10_test.*` files are the corresponding script outputs

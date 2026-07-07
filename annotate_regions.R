@@ -11,7 +11,6 @@
 #   <prefix>.repeat_detail.tsv
 #   <prefix>.background_summary.tsv
 #   <prefix>.feature_annotation_percent.png / .pdf
-#   <prefix>.repeat_association_percent.png / .pdf
 #   <prefix>.repeat_class_frequency.png / .pdf
 #   <prefix>.repeat_name_topN_frequency.png / .pdf
 #
@@ -587,6 +586,14 @@ count_levels <- function(vals, levels) {
   as.integer(table(fac))
 }
 
+OTHER_UNKNOWN_CLASSES <- c("Other", "Unknown")
+OTHER_UNKNOWN_LABEL <- "Other/Unknown"
+
+collapse_other_unknown <- function(class_vals) {
+  class_vals[class_vals %in% OTHER_UNKNOWN_CLASSES] <- OTHER_UNKNOWN_LABEL
+  class_vals
+}
+
 extract_repeat_plot_data <- function(out_df, repeat_detail_df, mode, top_n_repeat_names) {
   repeat_regions_df <- out_df[out_df$repeat_any == "yes", , drop = FALSE]
 
@@ -601,6 +608,7 @@ extract_repeat_plot_data <- function(out_df, repeat_detail_df, mode, top_n_repea
     name_vals <- repeat_detail_df$repeat_name
     name_vals <- name_vals[!is.na(name_vals) & name_vals != ""]
   }
+  class_vals <- collapse_other_unknown(class_vals)
 
   class_counts <- sort(table(class_vals), decreasing = TRUE)
   name_counts <- sort(table(name_vals), decreasing = TRUE)
@@ -820,7 +828,21 @@ message("Wrote: ", annotated_file)
 message("Wrote: ", repeat_detail_file)
 message("Wrote: ", background_summary_file)
 
-make_percent_compare_plot <- function(plot_df, x_label, y_label, title, out_file, flip = FALSE) {
+# Plots are sized as small paper-figure panels (a few cm on a side), not full-page
+# figures: minimal text, no titles (captions belong in the manuscript legend), and a
+# footprint that scales with the number of bars rather than a single fixed canvas.
+panel_size_cm <- function(n_categories, flip) {
+  if (flip) {
+    list(width = 4.2, height = min(6, max(3.2, 0.42 * n_categories + 1.5)))
+  } else {
+    list(width = min(6, max(3.4, 0.75 * n_categories + 2.0)), height = 4.0)
+  }
+}
+
+# At this panel size there isn't room for a "n=51.0"-style label without bars
+# overlapping their neighbor, so bar labels are a bare rounded integer.
+make_percent_compare_plot <- function(plot_df, x_label, y_label, out_file, flip = FALSE,
+                                       width_cm = 4, height_cm = 4) {
   plot_df$source <- factor(plot_df$source, levels = c("Observed", "Background"))
   plot_df$category <- factor(plot_df$category, levels = unique(plot_df$category))
   ymax <- max(plot_df$percent, na.rm = TRUE)
@@ -829,96 +851,97 @@ make_percent_compare_plot <- function(plot_df, x_label, y_label, title, out_file
   p <- ggplot(plot_df, aes(x = category, y = percent, fill = source)) +
     geom_col(position = position_dodge(width = 0.8), width = 0.7) +
     geom_text(
-      aes(label = sprintf("%.1f%%\n(n=%.1f)", percent * 100, n)),
+      aes(label = sprintf("%.0f", n)),
       position = position_dodge(width = 0.8),
-      hjust = if (flip) -0.1 else 0.5,
-      vjust = if (flip) 0.5 else -0.2,
-      size = 3
+      hjust = if (flip) -0.15 else 0.5,
+      vjust = if (flip) 0.5 else -0.3,
+      size = 1.6
     ) +
     scale_y_continuous(
-      limits = c(0, ymax * 1.30),
+      limits = c(0, ymax * 1.20),
       labels = function(x) sprintf("%.0f%%", x * 100)
     ) +
-    labs(x = x_label, y = y_label, title = title, fill = NULL) +
-    theme_bw()
+    labs(x = x_label, y = y_label, fill = NULL) +
+    theme_bw(base_size = 6) +
+    theme(
+      plot.margin = margin(1, 2, 1, 1, unit = "mm"),
+      legend.position = "bottom",
+      legend.key.size = unit(2, "mm"),
+      legend.text = element_text(size = 5),
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.spacing = unit(0.5, "mm"),
+      axis.text = element_text(size = 5),
+      axis.text.x = if (flip) element_text(size = 5) else element_text(size = 5, angle = 40, hjust = 1, vjust = 1),
+      axis.title = element_text(size = 6)
+    )
 
   if (flip) {
     p <- p + coord_flip()
   }
 
-  ggsave(paste0(out_file, ".png"), p, width = if (flip) 8 else 6.5, height = if (flip) 5.5 else 4.5, dpi = 300)
-  ggsave(paste0(out_file, ".pdf"), p, width = if (flip) 8 else 6.5, height = if (flip) 5.5 else 4.5)
+  ggsave(paste0(out_file, ".png"), p, width = width_cm, height = height_cm, units = "cm", dpi = 600)
+  ggsave(paste0(out_file, ".pdf"), p, width = width_cm, height = height_cm, units = "cm")
 }
 
 feature_plot <- paste0(out_prefix, ".feature_annotation_percent")
-repeat_assoc_plot <- paste0(out_prefix, ".repeat_association_percent")
 repeat_class_plot <- paste0(out_prefix, ".repeat_class_frequency")
 repeat_name_plot <- paste0(out_prefix, ".repeat_name_top", top_n_repeat_names, "_frequency")
 
-message("Generating plots...")
-make_percent_compare_plot(
-  feature_plot_df,
-  x_label = "Region annotation",
-  y_label = "Percentage of regions",
-  title = "Feature annotation of input regions vs matched genomic background",
-  out_file = feature_plot,
-  flip = FALSE
-)
-
-make_percent_compare_plot(
-  repeat_assoc_plot_df,
-  x_label = "Repeat overlap",
-  y_label = "Percentage of regions",
-  title = "Repeat association of input regions vs matched genomic background",
-  out_file = repeat_assoc_plot,
-  flip = FALSE
-)
-
-if (nrow(repeat_class_plot_df) > 0L && any(repeat_class_plot_df$n > 0)) {
-  make_percent_compare_plot(
-    repeat_class_plot_df,
-    x_label = "Repeat class",
-    y_label = if (repeat_summary_mode == "dominant") "Fraction of dominant-repeat assignments" else "Fraction of all repeat overlaps",
-    title = paste0(
-      if (repeat_summary_mode == "dominant") "Dominant" else "All-overlap",
-      " RepeatMasker class composition: observed vs matched genomic background"
-    ),
-    out_file = repeat_class_plot,
-    flip = FALSE
-  )
-} else {
-  png(paste0(repeat_class_plot, ".png"), width = 1400, height = 900, res = 150)
+no_data_plot <- function(out_file, width_cm = 4, height_cm = 3.6) {
+  png(paste0(out_file, ".png"), width = width_cm, height = height_cm, units = "cm", res = 600)
   plot.new()
-  text(0.5, 0.5, "No repeat-overlapping regions found")
+  text(0.5, 0.5, "No repeat-overlapping\nregions found", cex = 0.5)
   dev.off()
-  pdf(paste0(repeat_class_plot, ".pdf"), width = 1400 / 150, height = 900 / 150)
+  pdf(paste0(out_file, ".pdf"), width = width_cm / 2.54, height = height_cm / 2.54)
   plot.new()
-  text(0.5, 0.5, "No repeat-overlapping regions found")
+  text(0.5, 0.5, "No repeat-overlapping\nregions found", cex = 0.5)
   dev.off()
 }
 
+message("Generating plots...")
+feature_size <- panel_size_cm(length(unique(feature_plot_df$category)), flip = FALSE)
+make_percent_compare_plot(
+  feature_plot_df,
+  x_label = "Region annotation",
+  y_label = "% of regions",
+  out_file = feature_plot,
+  flip = FALSE,
+  width_cm = feature_size$width,
+  height_cm = feature_size$height
+)
+
+# Repeat association (percentage of regions overlapping any repeat) is not plotted:
+# repeats cover most of the genome, so this comparison to background is uninformative.
+# repeat_assoc_plot_df is still written to background_summary.tsv.
+
+if (nrow(repeat_class_plot_df) > 0L && any(repeat_class_plot_df$n > 0)) {
+  class_size <- panel_size_cm(length(unique(repeat_class_plot_df$category)), flip = FALSE)
+  make_percent_compare_plot(
+    repeat_class_plot_df,
+    x_label = "Repeat class",
+    y_label = if (repeat_summary_mode == "dominant") "Fraction of regions" else "Fraction of overlaps",
+    out_file = repeat_class_plot,
+    flip = FALSE,
+    width_cm = class_size$width,
+    height_cm = class_size$height
+  )
+} else {
+  no_data_plot(repeat_class_plot)
+}
+
 if (nrow(repeat_name_plot_df) > 0L && any(repeat_name_plot_df$n > 0)) {
+  name_size <- panel_size_cm(length(unique(repeat_name_plot_df$category)), flip = TRUE)
   make_percent_compare_plot(
     repeat_name_plot_df,
     x_label = "Repeat name",
-    y_label = if (repeat_summary_mode == "dominant") "Fraction of dominant-repeat assignments" else "Fraction of all repeat overlaps",
-    title = paste0(
-      "Top ", top_n_repeat_names, " RepeatMasker names (",
-      if (repeat_summary_mode == "dominant") "dominant per region" else "all overlaps",
-      "): observed vs matched genomic background"
-    ),
+    y_label = if (repeat_summary_mode == "dominant") "Fraction of regions" else "Fraction of overlaps",
     out_file = repeat_name_plot,
-    flip = TRUE
+    flip = TRUE,
+    width_cm = name_size$width,
+    height_cm = name_size$height
   )
 } else {
-  png(paste0(repeat_name_plot, ".png"), width = 1400, height = 900, res = 150)
-  plot.new()
-  text(0.5, 0.5, "No repeat-overlapping regions found")
-  dev.off()
-  pdf(paste0(repeat_name_plot, ".pdf"), width = 1400 / 150, height = 900 / 150)
-  plot.new()
-  text(0.5, 0.5, "No repeat-overlapping regions found")
-  dev.off()
+  no_data_plot(repeat_name_plot)
 }
 
 message("Done.")
@@ -929,6 +952,5 @@ message("Repeat summary mode for class/name plots: ", repeat_summary_mode)
 message("Background iterations: ", background_iterations)
 message("Plots:")
 message("  ", feature_plot)
-message("  ", repeat_assoc_plot)
 message("  ", repeat_class_plot)
 message("  ", repeat_name_plot)
