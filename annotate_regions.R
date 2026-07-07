@@ -23,7 +23,7 @@
 #   Rscript annotate_regions_background_repeatmode.R peaks.bed peaks_mm39 10 \
 #       --genome mm39 --repeat-summary-mode dominant --background-iterations 100
 
-VERSION <- "1.0.0"
+VERSION <- "1.1.0"
 
 suppressPackageStartupMessages({
   options(stringsAsFactors = FALSE)
